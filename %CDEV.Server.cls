@@ -76,22 +76,21 @@ ClassMethod GetNamespace(namespace As %String) As %Status
     q $$$OK
 }
 
-ClassMethod FileObject(filename As %String) As %CDEV.JSON.Object
+ClassMethod FileObject(namespace As %String, filename As %String) As %CDEV.JSON.Object
 {
     s result = $$$jsobj
 
     if ..FileExtension(filename) = "cls"
     {
-        s displayName = ..FileName(filename)
-        if ##class(%Dictionary.ClassDefinition).%ExistsId(displayName)
+        s systemName = ..FileName(filename)
+        if ##class(%Dictionary.ClassDefinition).%ExistsId(systemName)
         {
-            d ##class(%Compiler.UDL.TextServices).GetTextAsStream(,displayName,.classStream) 
+            d ##class(%Compiler.UDL.TextServices).GetTextAsStream(,..FileName(filename),.classStream) 
             s result.content = $$$jsstream(classStream)
         } else {
             q ""
         }
     } else {
-        s displayName = filename
         i ##class(%Routine).Exists(filename)
         {
             s routine = ##class(%Routine).%OpenId(filename)
@@ -103,8 +102,8 @@ ClassMethod FileObject(filename As %String) As %CDEV.JSON.Object
 
     s result.id = ..CreatePath("namespaces", namespace, "files", filename)
     s result.generatedfiles = result.id _ "/generated"
-    s result.name = displayName
-    s result.url = ..GetURLForClass(displayName)
+    s result.name = filename
+    s result.url = ..GetURLForClass(systemName)
     q result
 }
 
@@ -113,7 +112,7 @@ ClassMethod GetFile(namespace As %String, filename As %String) As %Status
     n $namespace
     s $namespace = namespace
 
-    s result = ..FileObject(filename)
+    s result = ..FileObject(namespace, filename)
 
     d result.%WriteJSON()
     q $$$OK
@@ -128,16 +127,15 @@ ClassMethod PutFile(namespace As %String, filename As %String) As %Status
 
     if ..FileExtension(filename) = "cls"
     {
-        s displayName = ..FileName(filename)
+        s systemName = ..FileName(filename)
         i $isobject(requestObject.content)
         {
-            s sc = ##class(%Compiler.UDL.TextServices).SetTextFromStream(,displayName,requestObject.content.Read()) 
+            s sc = ##class(%Compiler.UDL.TextServices).SetTextFromStream(,systemName,requestObject.content.Read()) 
         } else {
-            s sc = ##class(%Compiler.UDL.TextServices).SetTextFromString(,displayName,requestObject.content) 
+            s sc = ##class(%Compiler.UDL.TextServices).SetTextFromString(,systemName,requestObject.content) 
         }
     } else {
         s trueName = ..FileName(filename) _ "." _ $zcvt(..FileExtension(filename), "U")
-        s displayName = filename
         if ##class(%Routine).Exists(trueName)
         {
             s routine = ##class(%Routine).%OpenId(trueName)
@@ -162,8 +160,8 @@ ClassMethod PutFile(namespace As %String, filename As %String) As %Status
         s result.errors = $$DecomposeStatus^%apiOBJ(sc)
     } else {
         s result.success = $$$jstrue
-        s result.name = displayName
-        s result.file = ..FileObject(filename)
+        s result.name = filename
+        s result.file = ..FileObject(namespace, filename)
     }
     s %response.ContentType="application/json"
     d result.%WriteJSON()
@@ -198,7 +196,7 @@ ClassMethod FileAction(namespace As %String, filename As %String) As %Status
             s result.success = $$$jstrue
         }
     }
-    s result.file = ..FileObject(filename)
+    s result.file = ..FileObject(namespace, filename)
     s %response.ContentType="application/json"
     d result.%WriteJSON()
     q $$$OK
@@ -225,27 +223,6 @@ ClassMethod GetGenerated(namespace As %String, filename As %String) As %Status
             d results.Append(obj)
         }
     }
-    s %response.ContentType="application/json"
-    d results.%WriteJSON()
-    q $$$OK
-}
-
-ClassMethod GetGlobalList(namespace As %String)
-{
-    n $namespace
-    s $namespace = namespace
-    s results = $$$jslist
-    s global = ""
-    f
-    {
-        s global = $o(^$g(global))
-        q:global=""
-        s obj = $$$jsobj
-        s obj.name = $e(global,2,999)
-        s obj.id = ..CreatePath("namespaces", namespace, "globals", obj.name)
-        d results.Append(obj)
-    }
-
     s %response.ContentType="application/json"
     d results.%WriteJSON()
     q $$$OK
