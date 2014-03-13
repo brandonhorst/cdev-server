@@ -8,14 +8,19 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Routes>
     <Route Url="/namespaces" Method="GET" Call="GetNamespaceList" />
     <Route Url="/namespaces/:namespace" Method="GET" Call="GetNamespace" />
+    <Route Url="/namespaces/:namespace/xml" Method="PUT" Call="PutNewXML" />
     <Route Url="/namespaces/:namespace/files" Method="GET" Call="GetFileList" />
     <Route Url="/namespaces/:namespace/files" Method="PUT" Call="PutNewFile" />
     <Route Url="/namespaces/:namespace/files/:filename" Method="GET" Call="GetFile" />
     <Route Url="/namespaces/:namespace/files/:filename" Method="PUT" Call="PutFile" />
     <Route Url="/namespaces/:namespace/files/:filename" Method="POST" Call="FileAction" />
     <Route Url="/namespaces/:namespace/files/:filename/generated" Method="GET" Call="GetGenerated" />
+    <Route Url="/namespaces/:namespace/files/:filename/xml" Method="GET" Call="GetXML" />
+    <Route Url="/namespaces/:namespace/files/:filename/xml" Method="PUT" Call="PutXML" />
+    <Route Url="/namespaces/:namespace/xml" Method="PUT" Call="PutNewXML" />
     <Route Url="/namespaces/:namespace/globals" Method="GET" Call="GetGlobalList" />
     <Route Url="/namespaces/:namespace/globals/:globalname" Method="GET" Call="GetGlobal" />
+    <Route Url="/namespaces/:namespace/queries" Method="POST" Call="QueryAction" />
 </Routes>
 }
 
@@ -24,10 +29,7 @@ ClassMethod GetNamespaceList() As %Status
     s rs = ..DoSQL("%SYS.Namespace::List")
     s results = $$$jslist
     while rs.%Next() {
-        s obj = $$$jsobj
-        s obj.name = rs.%GetData(1)
-        s obj.id = ..CreatePath("namespaces", $zcvt(obj.name,"L"))
-        s obj.files = obj.id _ "/files"
+        s obj = ..NamespaceObject($zcvt(rs.%GetData(1), "L"))
         d results.Append(obj)
     }
 
@@ -67,13 +69,22 @@ ClassMethod GetFileList(namespace As %String) As %Status
 
 ClassMethod GetNamespace(namespace As %String) As %Status
 {
-    s obj = $$$jsobj
-    s obj.id = ..CreatePath("namespaces", namespace)
-    s obj.files = ..CreatePath("namespaces", namespace, "files")
+    s obj = ..NamespaceObject(namespace)
 
     s %response.ContentType="application/json"
     d obj.%WriteJSON()
     q $$$OK
+}
+
+ClassMethod NamespaceObject(namespace As %String) As %CDEV.JSON.Object
+{
+    s obj = $$$jsobj
+    s obj.id = ..CreatePath("namespaces", namespace)
+    s obj.name = $zcvt(namespace, "U")
+    s obj.files = ..CreatePath("namespaces", namespace, "files")
+    s obj.xml = ..CreatePath("namespaces", namespace, "xml")
+
+    q obj
 }
 
 ClassMethod FileObject(namespace As %String, filename As %String) As %CDEV.JSON.Object
@@ -91,6 +102,7 @@ ClassMethod FileObject(namespace As %String, filename As %String) As %CDEV.JSON.
             q ""
         }
     } else {
+        s systemName = filename
         i ##class(%Routine).Exists(filename)
         {
             s routine = ##class(%Routine).%OpenId(filename)
@@ -103,6 +115,7 @@ ClassMethod FileObject(namespace As %String, filename As %String) As %CDEV.JSON.
     s result.id = ..CreatePath("namespaces", namespace, "files", filename)
     s result.generatedfiles = result.id _ "/generated"
     s result.name = filename
+    s result.xml = ..CreatePath("namespaces", namespace, "files", filename, "xml")
     s result.url = ..GetURLForClass(systemName)
     q result
 }
@@ -202,12 +215,66 @@ ClassMethod FileAction(namespace As %String, filename As %String) As %Status
     q $$$OK
 }
 
+ClassMethod GetXML(namespace As %String, filename As %String) As %Status
+{
+    n $namespace
+    s $namespace = namespace
+
+    s exportname = ..FileName(filename) _ "." _ $zcvt(..FileExtension(filename), "U")
+    s sc = $system.OBJ.ExportToStream(exportname, .stream, "-d")
+
+    s result = $$$jsobj
+    s result.id = ..CreatePath("namespaces", namespace, "files", filename, "xml")
+    s result.content = $$$jsstream(stream)
+
+    s %response.ContentType="application/json"
+    d result.%WriteJSON()
+    q $$$OK
+}
+
+ClassMethod PutXML(namespace As %String, filename As %String) As %Status
+{
+    n $namespace
+    s $namespace = namespace
+
+    s request = ..GetRequest()
+
+    if '$isobject(request.content) {
+        s stream = ##class(%Stream.TmpCharacter).%New()
+        d stream.Write(request.content)
+    } else {
+        s stream = request.content
+    }
+    s sc = $system.OBJ.LoadStream(stream, "-c-d",,.loadedlist)
+
+    s result = $$$jsobj
+    if $$$ISERR(sc)
+    {
+        s result.success = $$$jstrue
+        s result.errors = $$DecomposeStatus^%apiOBJ(sc)
+    } else {
+        s result.success = $$$jstrue
+        s name = $o(loadedlist(""))
+        s displayname = ..FileName(name) _ "." _ $zcvt(..FileExtension(name),"L")
+        s result.file = ..FileObject(namespace, displayname)
+    }
+    s %response.ContentType="application/json"
+    d result.%WriteJSON()
+    q $$$OK
+}
+
+ClassMethod PutNewXML(namespace As %String) As %Status
+{
+    //This is fine, because it doesn't make use of filename, yet
+    q ..PutXML(namespace, "")
+}
+
+
 ClassMethod GetGenerated(namespace As %String, filename As %String) As %Status
 {
     n $namespace
     s $namespace = namespace
     
-    s rs = ..DoSQL("")
     s type = $zcvt(..FileExtension(filename),"U")
     s file = ..FileName(filename)
     s results = $$$jslist
@@ -246,6 +313,19 @@ ClassMethod GetGlobalList(namespace As %String)
 
     s %response.ContentType="application/json"
     d results.%WriteJSON()
+    q $$$OK
+}
+
+ClassMethod QueryAction(namespace As %String)
+{
+    n $namespace
+    s $namespace = namespace
+
+    s request = ..GetRequest()
+    i request.action = "execute"
+    {
+        d ##class(%ZEN.Auxiliary.jsonProvider).%WriteJSONFromSQL("",request.content)
+    }
     q $$$OK
 }
 
