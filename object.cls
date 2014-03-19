@@ -19,7 +19,7 @@ Method %WriteJSON()
 		}
 		s k = $o(..%data(k), 1, v)
 		q:k=""
-		w:..Count()>(i+1) ","
+		w ","
 	}
 	w "}"
 }
