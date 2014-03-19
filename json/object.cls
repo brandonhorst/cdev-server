@@ -24,6 +24,11 @@ Method %WriteJSON()
 	w "}"
 }
 
+Method Count() As %Integer
+{
+	q ..%data
+}
+
 Method %DispatchGetProperty(name As %String) [ Final, Internal ]
 {
 	q $G(..%data(name))
