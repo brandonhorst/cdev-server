@@ -30,8 +30,11 @@ ClassMethod GetNamespaceList() As %Status
     s rs = ..DoSQL("%SYS.Namespace::List")
     s results = $$$jslist
     while rs.%Next() {
-        s obj = ..NamespaceObject($zcvt(rs.%GetData(1), "L"))
-        d results.Append(obj)
+        if '$d(%request.Data("name", 1)) || (rs.%GetData(1) = $zcvt(%request.Data("name", 1), "U")
+        {
+            s obj = ..NamespaceObject($zcvt(rs.%GetData(1), "L"))
+            d results.Append(obj)
+        }
     }
 
     s %response.ContentType="application/json"
@@ -272,7 +275,6 @@ ClassMethod PutNewXML(namespace As %String) As %Status
     q ..PutXML(namespace, "")
 }
 
-
 ClassMethod GetGenerated(namespace As %String, filename As %String) As %Status
 {
     n $namespace
@@ -392,7 +394,6 @@ ClassMethod GetRequest() As %ZEN.proxyObject
     d ##class(%ZEN.Auxiliary.jsonProvider).%ConvertJSONToObject(%request.Content,,.request)
     q request
 }
-
 
 ClassMethod DoSQL(sql As %String, args...) As %SQL.StatementResult
 {
