@@ -21,6 +21,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
     <Route Url="/namespaces/:namespace/globals" Method="GET" Call="GetGlobalList" />
     <Route Url="/namespaces/:namespace/globals/:globalname" Method="GET" Call="GetGlobal" />
     <Route Url="/namespaces/:namespace/queries" Method="POST" Call="QueryAction" />
+    <Route Url="/namespaces/:namespace/code" Method="POST" Call="RunCode" />
 </Routes>
 }
 
@@ -79,10 +80,12 @@ ClassMethod GetNamespace(namespace As %String) As %Status
 ClassMethod NamespaceObject(namespace As %String) As %CDEV.JSON.Object
 {
     s obj = $$$jsobj
+
     s obj.id = ..CreatePath("namespaces", namespace)
     s obj.name = $zcvt(namespace, "U")
     s obj.files = ..CreatePath("namespaces", namespace, "files")
     s obj.xml = ..CreatePath("namespaces", namespace, "xml")
+    s obj.queries = ..CreatePath("queries", namespace, "queries")
 
     q obj
 }
@@ -250,7 +253,7 @@ ClassMethod PutXML(namespace As %String, filename As %String) As %Status
     s result = $$$jsobj
     if $$$ISERR(sc)
     {
-        s result.success = $$$jstrue
+        s result.success = $$$jsfalse
         s result.errors = $$DecomposeStatus^%apiOBJ(sc)
     } else {
         s result.success = $$$jstrue
@@ -324,9 +327,34 @@ ClassMethod QueryAction(namespace As %String)
     s request = ..GetRequest()
     i request.action = "execute"
     {
+        s result = $$$jsobj
+
+        s st = ##class(%SQL.Statement).%New()
+        s sc = st.%Prepare(request.content)
+        if $$$ISERR(sc) {
+            s result.success = $$$jsfalse
+        } else {
+            s result.success = $$$jstrue
+        }
+        s rs = st.%Execute()
+
+
+        s result.success =  
         d ##class(%ZEN.Auxiliary.jsonProvider).%WriteJSONFromSQL("",request.content)
     }
     q $$$OK
+}
+
+ClassMethod RunCode(namespace As %String)
+{
+    n $namespace
+    s $namespace = namespace
+
+    s request = ..GetRequest()
+    i request.action = "execute"
+    {
+
+    }
 }
 
 ClassMethod FileExtension(filename As %String) As %String
