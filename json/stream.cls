@@ -4,8 +4,8 @@ Class %CDEV.JSON.Stream Extends Base
 
 	Method %OnNew(data As %Stream.Object) As %Status
 	{
-		s %data = ##class(%Stream.TmpCharacter).%New()
-		s sc = %data.CopyFrom(data)
+		s ..%data = ##class(%Stream.TmpCharacter).%New()
+		s sc = ..%data.CopyFrom(data)
 		q sc
 	}
 	Method %WriteJSON()
@@ -14,7 +14,7 @@ Class %CDEV.JSON.Stream Extends Base
 		w """"
 		f
 		{
-			w $zcvt(%data.Read(.len, .sc), "O", "JSON")
+			w $zcvt(..%data.Read(.len, .sc), "O", "JSON")
 			q:len=-1
 		}
 		w """"

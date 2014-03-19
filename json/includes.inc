@@ -7,4 +7,4 @@ SimpleIncludes
 #define jsbool(%x)   ##class(%CDEV.JSON.Boolean).%New(%x)
 #define jsobj        ##class(%CDEV.JSON.Object).%New()
 #define jslist       ##class(%CDEV.JSON.List).%New()
-#define jsstream(%x) ##class(%CDEV.JSON.Stream).%New()
+#define jsstream(%x) ##class(%CDEV.JSON.Stream).%New(%x)
