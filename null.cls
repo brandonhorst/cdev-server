@@ -1,4 +1,4 @@
-Class Simple.Null Extends Base
+Class %CDEV.JSON.Null Extends Base
 {
 
 Method %WriteJSON()

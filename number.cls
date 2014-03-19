@@ -1,4 +1,4 @@
-Class Simple.Number Extends Base
+Class %CDEV.JSON.Number Extends Base
 {
 
 Property %data As %String [ Internal ];

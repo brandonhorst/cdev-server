@@ -1,4 +1,4 @@
-Class Simple.Object Extends Base
+Class %CDEV.JSON.Object Extends Base
 {
 
 Property %data As %String [ Internal, MultiDimensional ];
