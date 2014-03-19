@@ -36,6 +36,7 @@ Method %DispatchGetProperty(name As %String) [ Final, Internal ]
 
 Method %DispatchSetProperty(name As %String, value As %String) [ Final, Internal ]
 {
+	s:'$data(..%data(name)) ..%data = $i(..%data)
 	s ..%data(name) = value
 }	
 
