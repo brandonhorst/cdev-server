@@ -339,7 +339,7 @@ ClassMethod QueryAction(namespace As %String)
         s rs = st.%Execute()
 
 
-        s result.success =  
+        s result.success = $$$jstrue
         d ##class(%ZEN.Auxiliary.jsonProvider).%WriteJSONFromSQL("",request.content)
     }
     q $$$OK
