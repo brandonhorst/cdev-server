@@ -1,4 +1,4 @@
-Class Simple.Base Extends %Library.RegisteredObject [Abstract]
+Class %CDEV.JSON.Base Extends %Library.RegisteredObject [Abstract]
 {
 
 Method %WriteJSON()

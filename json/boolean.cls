@@ -1,4 +1,4 @@
-Class Simple.Boolean Extends Base
+Class %CDEV.JSON.Boolean Extends Base
 {
 
 Property %data As %String [ Internal ];

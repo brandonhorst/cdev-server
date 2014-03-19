@@ -1,4 +1,4 @@
-Class Simple.List Extends Base
+Class %CDEV.JSON.List Extends Base
 {
 
 Property %data As %ZEN.Datatype.string(XMLPROJECTION = "NONE") [ Internal, MultiDimensional ];
