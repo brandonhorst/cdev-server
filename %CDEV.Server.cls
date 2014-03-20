@@ -6,6 +6,7 @@ Class %CDEV.Server Extends %CSP.REST
 XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 {
 <Routes>
+    <Route Url="/" Method="GET" Call="ListOptions" />
     <Route Url="/namespaces" Method="GET" Call="GetNamespaceList" />
     <Route Url="/namespaces/:namespace" Method="GET" Call="GetNamespace" />
     <Route Url="/namespaces/:namespace/xml" Method="PUT" Call="PutNewXML" />
