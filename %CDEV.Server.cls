@@ -26,12 +26,23 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 </Routes>
 }
 
+ClassMethod ListOptions() As %Status
+{
+    s result = $$$jsobj
+    s result.namespaces = ..CreatePath("namespaces")
+
+    s %response.ContentType="application/json"
+    d result.%WriteJSON()
+    q $$$OK
+}
+
 ClassMethod GetNamespaceList() As %Status
 {
     s rs = ..DoSQL("%SYS.Namespace::List")
     s results = $$$jslist
-    while rs.%Next() {
-        if '$d(%request.Data("name", 1)) || (rs.%GetData(1) = $zcvt(%request.Data("name", 1), "U")
+    while rs.%Next()
+    {
+        if '$d(%request.Data("name", 1)) || (rs.%GetData(1) = $zcvt(%request.Data("name", 1), "U"))
         {
             s obj = ..NamespaceObject($zcvt(rs.%GetData(1), "L"))
             d results.Append(obj)
