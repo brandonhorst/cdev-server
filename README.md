@@ -1,10 +1,194 @@
-cdev
+cdev-server
 ====
+###RESTful API for InterSystems Cache Development
 
-InterSystems Cache Development API
+`cdev` allows for development on InterSystems Cache/Ensemble/HealthShare systems outside of Cache Studio.
 
-To install the server-side components, run this absurd thing:
+##Limitations
+
+* `cdev` only runs on Cache 2014.1 and later, and the Cache Instance must be running on Windows. This is because %Compiler.UDL.TextServices, the internal API that it relies on has not yet been ported to other operating systems. InterSystems development is aware of this limitation.
+
+##Installation
+
+To install the server-side components, run this block of text in the terminal, with a user who has `%All`:
 
 	zn "%SYS" s b=##class(SYS.Database).%OpenId($zu(12,"cachelib")),bk=b.ReadOnly,b.ReadOnly=0 d b.%Save() s s="Github_CDEV",l="/brandonhorst/cdev-server/master/",jf="json/",jn="%CDEV.JSON.",f="base,boolean,list,null,number,object,stream",if="includes.inc",sn="%CDEV.Server",u="/csp/sys/dev" d ##class(Security.SSLConfigs).Create(s),##class(Security.Applications).Copy("/csp/sys",u,"CDev REST Application"),##class(Security.Applications).Get(u,.p) s p("DispatchClass")=sn d ##class(Security.Applications).Modify(u,.p) s r=##class(%Net.HttpRequest).%New(),r.Server="raw.github.com",r.Https=1,r.SSLConfiguration=s f i=1:1:$l(f,",") { s t=$p(f,",",i),tn=jn_$zcvt($e(t),"U")_$e(t,2,99) d r.Get(l_jf_t_".cls") s d=$replace(r.HttpResponse.Data.Read(),$c(10),$c(13,10)) d ##class(%Compiler.UDL.TextServices).SetTextFromString(,tn,d),$system.OBJ.Compile(tn,"c-d") } d r.Get(l_jf_if) s i=##class(%Routine).%New(jn_$zcvt($e(if),"U")_$e(if,2,*-3)_$zcvt($e(if,*-2,99),"U")) d i.CopyFromAndSave(r.HttpResponse.Data),r.Get(l_$zcvt(sn,"O","URL")_".cls") s d=$replace(r.HttpResponse.Data.Read(),$c(10),$c(13,10)) d ##class(%Compiler.UDL.TextServices).SetTextFromString(,sn,d),$system.OBJ.Compile(sn,"c-d") s b.ReadOnly=bk d b.%Save()
 
-Only runs on Cache 2014.1+, and only on Windows (as %Compiler.UDL.TextServices has not yet been ported).
+If you don't want to piece through that absurd mess, here is what it does:
+
+* Changes to the `%SYS` namespace
+* Makes the `CACHELIB` database writable
+* Creates an empty SSL Configuration called `Github_CDEV` to connect to https://raw.github.com
+* Installs and compiles the `Cache-Simple-JSON-Classes` tools from the `master` branch
+* Installs and compiles `%CDEV.Server.cls`, the REST page
+* Reverts the `CACHELIB` database to its previous state
+
+##API Reference
+
+The API follows general RESTful guidelines. The following APIs are fairly stable, but anything is subject to change.
+
+All data is transferred using JSON.
+
+###Objects
+
+All objects have an `id` property, which contain a reference to a full copy of that object. If you `GET *id*` it will give you all available information about that object.
+
+Paths should never be generated on the fly. The only path guaranteed not to change is `/`. Everything else should make use of documented references, not assumptions about URL structure.
+
+####Namespace
+
+	{
+		id:      Hyperlink to this namespace
+		name:    Human-readable name for this namespace. Uppercase. ex. USER, %SYS...
+		files:   Hyperlink to list access files in this namespace
+		xml:     Hyperlink to access xml files for this namespace
+		queries: Hyperlink to access SQL Queries for this namespace
+	}
+
+####File
+
+	{
+		id: 	 Hyperlink to this file
+		name:    Human-readable name for this file. Always contains a path extension, which is always lowercase. ex. Sample.Person.cls, LDAP.mac
+		xml:     Hyperlink to download generated files. Note that if this file has never been compiled with the `k` flag, there will likely be none.
+		url:     URL to view this file in a browser (For CSP Pages, Zen Pages, and Web Services).
+		content: Content of the file, either UDL (Class code) or ObjectScript. Always uses CR-LF line terminators.
+	}
+
+####FileOperation
+	
+	{
+		success:  Boolean
+		errors:   String or [ String ] of errors. Only supplied if !success.
+		file:     File
+	}
+
+####XML
+
+	{
+		id:      Hyperlink to this XML file
+		content: XML representation of this file. Always uses CR-LF line terminators.
+	}
+
+####FileOperation
+	
+	{
+		success:  Boolean
+		errors:   String or [ String ] of errors. Only supplied if !success.
+		xml:      XML
+		file:     File
+	}
+
+###Calls
+
+
+####`GET /`
+
+Entry point for the API. Call this to get links to all other 
+
+######Returns
+	{ namespaces: Hyperlink to namespaces }
+
+
+####`GET root.namespaces`
+
+Get all namespace on the instance, or one specific namespace by name.
+
+######Returns
+	[ Namespace ]
+
+######Parameters
+Accepts an optional URL parameter, `name` which will only return the Namespace where `name == *name*`
+
+
+####`GET root.namespaces[n].files`
+Get all files in that namespace, or one specific file by name.
+
+######Returns
+	[ File ]
+
+Content is not included. Request file.id to get it.
+
+######Parameters
+Accepts an optional URL parameter, `name` which will only return the File where `name == *name*`
+
+
+####`GET root.namespaces[n].files[n].generated`
+Get the files generated by this class compiling. Note that if this file has never been compiled with the `k` flag, there will likely be none.
+
+######Returns
+	[ File ]
+
+Content is not included. Request file.id to get it.
+
+
+####`GET root.namespaces[n].files[n].xml`
+Get the XML representation (Export) of a file.
+
+######Returns
+	[ XML ]
+
+
+####`PUT root.namespaces[n].files[n].xml`
+Put the XML representation of a file (Load). Note that this does not compile anything.
+
+######Accepts
+	XML
+
+######Returns
+	[ XMLOperation ]
+
+
+####`PUT root.namespaces[n].xml`
+Put the XML representation of a file (Load). Note that this does not compile anything.
+
+######Accepts
+	XML
+
+######Returns
+	[ XMLOperation ]
+
+
+####`PUT root.namespaces[n].files`
+Upload a new file (overwrite if it already exists)
+
+######Accepts
+	File
+
+Only `name` and `content` are used.
+
+######Returns
+	FileOperation
+
+####`PUT root.namespaces[n].files[n].id`
+Overwrite the file specified by the file object
+
+######Accepts
+	File
+
+Only `name` and `content are used.
+
+######Returns
+	FileOperation
+
+
+####`POST root.namespaces[n].files[n].id`
+Perform some action on the specified file
+
+######Accepts
+	{
+		"action": "compile"
+		"spec": Only if action=="compile". Compilation spec, as specified by %SYSTEM.OBJ::ShowQualifiers and ::ShowFlags
+	}
+
+######Returns
+	FileOperation
+
+##Subtrees
+
+* The json subtree is from [`Cache-Simple-JSON-Classes`](https://github.com/brandonhorst/Cache-Simple-JSON-Classes)
+
+##See Also
+
+* [`cdev-client-py`](https://github.com/brandonhorst/cdev-client-py) - a Python Client
+* [`SublimeCache`](https://github.com/brandonhorst/SublimeCache) - a Sublime Text 3 Package using `cdev-client-py`
