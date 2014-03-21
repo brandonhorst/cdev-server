@@ -9,19 +9,29 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
     <Route Url="/" Method="GET" Call="ListOptions" />
     <Route Url="/namespaces" Method="GET" Call="GetNamespaceList" />
     <Route Url="/namespaces/:namespace" Method="GET" Call="GetNamespace" />
-    <Route Url="/namespaces/:namespace/xml" Method="PUT" Call="PutNewXML" />
+
     <Route Url="/namespaces/:namespace/files" Method="GET" Call="GetFileList" />
     <Route Url="/namespaces/:namespace/files" Method="PUT" Call="PutNewFile" />
     <Route Url="/namespaces/:namespace/files/:filename" Method="GET" Call="GetFile" />
     <Route Url="/namespaces/:namespace/files/:filename" Method="PUT" Call="PutFile" />
     <Route Url="/namespaces/:namespace/files/:filename" Method="POST" Call="FileAction" />
-    <Route Url="/namespaces/:namespace/files/:filename/generated" Method="GET" Call="GetGenerated" />
+    <Route Url="/namespaces/:namespace/files/:filename/generated" Method="GET" Call="GetFileGenerated" />
+
     <Route Url="/namespaces/:namespace/files/:filename/xml" Method="GET" Call="GetXML" />
     <Route Url="/namespaces/:namespace/files/:filename/xml" Method="PUT" Call="PutXML" />
+
     <Route Url="/namespaces/:namespace/xml" Method="PUT" Call="PutNewXML" />
+
     <Route Url="/namespaces/:namespace/globals" Method="GET" Call="GetGlobalList" />
     <Route Url="/namespaces/:namespace/globals/:globalname" Method="GET" Call="GetGlobal" />
-    <Route Url="/namespaces/:namespace/queries" Method="POST" Call="QueryAction" />
+
+    <Route Url="/namespaces/:namespace/queries" Method="GET" Call="GetQueryList" />
+    <Route Url="/namespaces/:namespace/queries" Method="PUT" Call="PutNewQuery" />
+    <Route Url="/namespaces/:namespace/queries/:query" Method="GET" Call="GetQuery" />
+    <Route Url="/namespaces/:namespace/queries/:query" Method="POST" Call="QueryAction" />
+    <Route Url="/namespaces/:namespace/queries/:query/plan" Method="POST" Call="GetQueryPlan" />
+    <Route Url="/namespaces/:namespace/queries/:query/cached" Method="POST" Call="GetQueryCached" />
+
     <Route Url="/namespaces/:namespace/code" Method="POST" Call="RunCode" />
 </Routes>
 }
@@ -100,7 +110,7 @@ ClassMethod NamespaceObject(namespace As %String) As %CDEV.JSON.Object
     s obj.name = $zcvt(namespace, "U")
     s obj.files = ..CreatePath("namespaces", namespace, "files")
     s obj.xml = ..CreatePath("namespaces", namespace, "xml")
-    s obj.queries = ..CreatePath("queries", namespace, "queries")
+    s obj.queries = ..CreatePath("namespaces", namespace, "queries")
 
     q obj
 }
@@ -188,7 +198,7 @@ ClassMethod PutFile(namespace As %String, filename As %String) As %Status
     i $$$ISERR(sc)
     {
         s result.success = $$$jsfalse
-        s result.errors = $$DecomposeStatus^%apiOBJ(sc)
+        s result.errors = ..ErrorsList(sc)
     } else {
         s result.success = $$$jstrue
         s result.name = filename
@@ -269,7 +279,7 @@ ClassMethod PutXML(namespace As %String, filename As %String) As %Status
     if $$$ISERR(sc)
     {
         s result.success = $$$jsfalse
-        s result.errors = $$DecomposeStatus^%apiOBJ(sc)
+        s result.errors = ..ErrorsList(sc)
     } else {
         s result.success = $$$jstrue
         s name = $o(loadedlist(""))
@@ -287,7 +297,7 @@ ClassMethod PutNewXML(namespace As %String) As %Status
     q ..PutXML(namespace, "")
 }
 
-ClassMethod GetGenerated(namespace As %String, filename As %String) As %Status
+ClassMethod GetFileGenerated(namespace As %String, filename As %String) As %Status
 {
     n $namespace
     s $namespace = namespace
@@ -333,29 +343,100 @@ ClassMethod GetGlobalList(namespace As %String)
     q $$$OK
 }
 
-ClassMethod QueryAction(namespace As %String)
+ClassMethod QueryObject(namespace As %String, id As %Integer) As %CDEV.JSON.Object
+{
+    s result = $$$jsobj
+    s result.id = ..CreatePath("namespaces", namespace, "queries", id)
+    s result.text = ^CacheTempCDEVQuery(id, "text")
+    s result.plan = ..CreatePath("namespaces", namespace, "queries", id, "plan")
+    s result.cached = ..CreatePath("namespaces", namespace, "queries", id, "cached")
+    q result
+}
+
+ClassMethod GetQueryList(namespace As %String)
+{
+    n $namespace
+    s $namespace = namespace
+
+    s results = $$$jslist
+
+    s id = ""
+    if $data(^CacheTempCDEVQuery)
+    {
+        f
+        {
+            s id = $o(^CacheTempCDEVQuery(i))
+            d results.Append(..QueryObject(namespace, id))
+        }
+    }
+
+    s %response.ContentType="application/json"
+    d results.%WriteJSON()
+    q $$$OK
+}
+
+ClassMethod PutNewQuery(namespace As %String)
 {
     n $namespace
     s $namespace = namespace
 
     s request = ..GetRequest()
+    s result = $$$jsobj
+    if $length(request.text)
+    {
+        s id = $increment(^CacheTempCDEVQuery)
+        s ^CacheTempCDEVQuery(id, "text") = request.text
+        s result.success = $$$jstrue
+        s result.query = ..QueryObject(namespace, id)
+    } else {
+        s result.success = $$$jsfalse
+        s result.errors = "No query supplied"
+    }
+
+    s %response.ContentType="application/json"
+    d result.%WriteJSON()
+    q $$$OK 
+}
+
+ClassMethod QueryAction(namespace As %String, query As %Integer)
+{
+    n $namespace
+    s $namespace = namespace
+
+    s request = ..GetRequest()
+    s queryObject = ..QueryObject(namespace, query)
     i request.action = "execute"
     {
         s result = $$$jsobj
 
         s st = ##class(%SQL.Statement).%New()
-        s sc = st.%Prepare(request.content)
-        if $$$ISERR(sc) {
+        s sc = st.%Prepare(queryObject.text)
+        if $$$ISERR(sc)
+        {
             s result.success = $$$jsfalse
+            s result.errors = ..ErrorsList(sc)
         } else {
             s result.success = $$$jstrue
+            s result.content = $$$jsobj
+            s rs = st.%Execute()
+            s mt = rs.%GetMetadata()
+
+            //This could probably be optimized significantly!
+            for i=1:1:mt.columnCount
+            {
+                s $property(result.content, mt.columns.GetAt(i).colName) = $$$jslist
+            }
+            while rs.%Next()
+            {
+                for i=1:1:mt.columnCount
+                {
+                    d $method($property(result.content, mt.columns.GetAt(i).colName), "Append", rs.%GetData(i))
+                }
+            }
         }
-        s rs = st.%Execute()
-
-
-        s result.success = $$$jstrue
-        d ##class(%ZEN.Auxiliary.jsonProvider).%WriteJSONFromSQL("",request.content)
     }
+    s %response.ContentType="application/json"
+    d result.%WriteJSON()
     q $$$OK
 }
 
@@ -429,6 +510,16 @@ ClassMethod GetURLForClass(classname As %String) As %String
     s cspapp = rs.%GetData(1)
 
     q cspapp _ classname _ ".cls"
+}
+
+ClassMethod ErrorsList(sc As %Status) As %CDEV.JSON.List
+{
+    s list = $$$jslist
+    d DecomposeStatus^%apiOBJ(sc, .err, "-d")
+    for i=1:1:err {
+        d list.Append(err(i))
+    }
+    q list
 }
 
 }
