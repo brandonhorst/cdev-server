@@ -347,7 +347,7 @@ ClassMethod QueryObject(namespace As %String, id As %Integer) As %CDEV.JSON.Obje
 {
     s result = $$$jsobj
     s result.id = ..CreatePath("namespaces", namespace, "queries", id)
-    s result.text = ^CacheTempCDEVQuery(id, "text")
+    s result.content = ^CacheTempCDEVQuery(id, "text")
     s result.plan = ..CreatePath("namespaces", namespace, "queries", id, "plan")
     s result.cached = ..CreatePath("namespaces", namespace, "queries", id, "cached")
     q result
@@ -382,10 +382,10 @@ ClassMethod PutNewQuery(namespace As %String)
 
     s request = ..GetRequest()
     s result = $$$jsobj
-    if $length(request.text)
+    if $length(request.content)
     {
         s id = $increment(^CacheTempCDEVQuery)
-        s ^CacheTempCDEVQuery(id, "text") = request.text
+        s ^CacheTempCDEVQuery(id, "text") = request.content
         s result.success = $$$jstrue
         s result.query = ..QueryObject(namespace, id)
     } else {
@@ -410,31 +410,94 @@ ClassMethod QueryAction(namespace As %String, query As %Integer)
         s result = $$$jsobj
 
         s st = ##class(%SQL.Statement).%New()
-        s sc = st.%Prepare(queryObject.text)
+        s sc = st.%Prepare(queryObject.content)
         if $$$ISERR(sc)
         {
             s result.success = $$$jsfalse
             s result.errors = ..ErrorsList(sc)
         } else {
             s result.success = $$$jstrue
-            s result.content = $$$jsobj
+            s result.resultset = $$$jsobj
+            s result.query = ..QueryObject(namespace, query)
             s rs = st.%Execute()
             s mt = rs.%GetMetadata()
 
             //This could probably be optimized significantly!
             for i=1:1:mt.columnCount
             {
-                s $property(result.content, mt.columns.GetAt(i).colName) = $$$jslist
+                s $property(result.resultset, mt.columns.GetAt(i).colName) = $$$jslist
             }
             while rs.%Next()
             {
                 for i=1:1:mt.columnCount
                 {
-                    d $method($property(result.content, mt.columns.GetAt(i).colName), "Append", rs.%GetData(i))
+                    d $method($property(result.resultset, mt.columns.GetAt(i).colName), "Append", rs.%GetData(i))
                 }
             }
         }
     }
+    s %response.ContentType="application/json"
+    d result.%WriteJSON()
+    q $$$OK
+}
+
+ClassMethod GetQueryPlanObject(text As %String) As %CDEV.JSON.Object
+{
+    s queryArray = 1
+    s queryArray(1) = text
+    d ShowPlan^%apiSQL(.queryArray, 1, 0, 1)
+    s planStream = ##class(%Stream.TmpCharacter).%New()
+    for i=1:1:%plan
+    {
+        planStream.WriteLine(%plan(i))
+    }
+    d planStream.Rewind()
+    s reader = ##class(%XML.TextReader).%New()
+    d reader.ParseStream(planStream)
+    s textStream = $$$jsstream
+
+    s currentElement = ""
+    while reader.Read()
+    {
+        if reader.NodeType = "element"
+        {
+            s currentElement = reader.Name
+        }
+        else if reader.NodeType = "chars"
+        {
+            if currentElement = "plan"
+            {
+                textStream.Write(reader.Value)
+            }
+        }
+    }
+    s result = $$$jsobj
+    s result.content = textStream
+    q result
+}
+
+ClassMethod GetQueryPlan(namespace As %String, query As %Integer)
+{
+    n $namespace
+    s $namespace = namespace
+
+    s result = $$$jsobj
+    try {
+        s queryObject = ..QueryObject(query)
+    } catch {
+        s result.success = $$$jsfalse
+        s result.errors = ..ErrorsList($)
+
+    }
+
+    if $l(queryObject.content)
+    {
+        s result.success = $$$jstrue
+    } else {
+        s result.errors = "Invalid Query"
+    }
+    s result.
+
     s %response.ContentType="application/json"
     d result.%WriteJSON()
     q $$$OK
@@ -516,7 +579,8 @@ ClassMethod ErrorsList(sc As %Status) As %CDEV.JSON.List
 {
     s list = $$$jslist
     d DecomposeStatus^%apiOBJ(sc, .err, "-d")
-    for i=1:1:err {
+    for i=1:1:err
+    {
         d list.Append(err(i))
     }
     q list
