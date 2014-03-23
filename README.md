@@ -184,6 +184,19 @@ Perform some action on the specified file
 ######Returns
 	FileOperation
 
+##Goals
+
+* Allow for execution of SQL Queries (implemented, not yet documented)
+* Access query plans and cached queries (in progress)
+* Get, set, and kill globals
+* Allow for execution of arbitrary code (batch)
+
+####Long-term goals (related to Cache but part of separate projects)
+
+* Integration with Sublime Text - [`SublimeCache`](https://github.com/brandonhorst/SublimeCache)
+* Some sort of integration with Github
+* Web Sockets implementation to allow for cross-platform Terminal usage
+
 ##Subtrees
 
 * The json subtree is from [`Cache-Simple-JSON-Classes`](https://github.com/brandonhorst/Cache-Simple-JSON-Classes)
