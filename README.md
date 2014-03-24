@@ -87,7 +87,11 @@ Paths should never be generated on the fly. The only path guaranteed not to chan
 Entry point for the API. Call this to get links to all other 
 
 ######Returns
-	{ namespaces: Hyperlink to namespaces }
+	{
+		version: SemVer with leading `v` representing the current version. ex. `v0.0.3`.
+		namespaces: Hyperlink to namespaces
+	}
+
 
 
 ####`GET root.namespaces`
