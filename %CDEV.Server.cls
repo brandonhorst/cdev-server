@@ -40,6 +40,7 @@ ClassMethod ListOptions() As %Status
 {
     s result = $$$jsobj
     s result.namespaces = ..CreatePath("namespaces")
+    s result.version = "v0.0.3"
 
     s %response.ContentType="application/json"
     d result.%WriteJSON()
