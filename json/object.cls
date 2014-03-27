@@ -10,7 +10,9 @@ Method %WriteJSON()
 	f
 	{
 		q:k=""
-		w """", k, """:"
+		w """"
+		d ..%WriteJSONString(k)
+		w """:"
 		if $isobject(v)
 		{
 			d v.%WriteJSON()
