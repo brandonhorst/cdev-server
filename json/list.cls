@@ -13,7 +13,9 @@ Method %WriteJSON()
 		{
 			d x.%WriteJSON()
 		} else {
-			w """", x, """"
+			w """"
+			d ..%WriteJSONString(x)
+			w """"
 		}
 		w:..Count()>(i+1) ","
 	}
@@ -46,7 +48,6 @@ Method Slice(start = "", end = "") As List
 	s trueEnd = $o(..%data(""), -1)
 	s startIndex = $s(start = "": trueStart, start >= 0: trueStart + start, 1: trueEnd + start + 1)
 	s endIndex = $s(end = "": trueEnd, end >= 0: trueStart + end - 1, 1: trueEnd + end)
-	w trueStart _":" _ trueEnd _ ":" _ startIndex _ ":" _ endIndex
 	
 	f i=startIndex:1:endIndex
 	{

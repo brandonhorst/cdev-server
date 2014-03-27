@@ -15,7 +15,9 @@ Method %WriteJSON()
 		{
 			d v.%WriteJSON()
 		} else {
-			w """", v, """"
+			w """"
+			d ..%WriteJSONString(v)
+			w """"
 		}
 		s k = $o(..%data(k), 1, v)
 		q:k=""

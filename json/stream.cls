@@ -14,7 +14,7 @@ Class %CDEV.JSON.Stream Extends Base
 		w """"
 		f
 		{
-			w $zcvt(..%data.Read(.len, .sc), "O", "JSON")
+			d ..%WriteJSONString(..%data.Read(.len, .sc))
 			q:len=-1
 		}
 		w """"

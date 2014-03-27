@@ -3,36 +3,62 @@ Include %CDEV.JSON.Includes
 Class %CDEV.Server Extends %CSP.REST
 {
 
+//Used to handle Namespace Switching. If a ClassMethod that ends in an N and does not exist is called, it will switch the NameSpace
+//to the first argument, and call the classmethod with the same arguments, but without the N
+ClassMethod %DispatchClassMethod(Class As %String, Method As %String, Args...)
+{
+    if $extract(Method, *) = "N"
+    {
+        s actualMethod = $extract(Method, 1, *-1)
+
+        if $g(Args) {
+            s namespace = Args(1)
+            n $namespace
+            s $namespace = namespace
+        }
+        s %response.ContentType = "application/json"
+        s %input = ..GetRequest()
+        s response = $classmethod(Class, actualMethod, Args...)
+        d response.%WriteJSON()
+        q $$$OK
+    } else {
+        q "Class Method Not Found"
+    }
+}
+
 XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 {
 <Routes>
-    <Route Url="/" Method="GET" Call="ListOptions" />
-    <Route Url="/namespaces" Method="GET" Call="GetNamespaceList" />
-    <Route Url="/namespaces/:namespace" Method="GET" Call="GetNamespace" />
+    <Route Url="/" Method="GET" Call="ListOptionsN" />
+    <Route Url="/namespaces" Method="GET" Call="GetNamespaceListN" />
+    <Route Url="/namespaces/:namespace" Method="GET" Call="GetNamespaceN" />
 
-    <Route Url="/namespaces/:namespace/files" Method="GET" Call="GetFileList" />
-    <Route Url="/namespaces/:namespace/files" Method="PUT" Call="PutNewFile" />
-    <Route Url="/namespaces/:namespace/files/:filename" Method="GET" Call="GetFile" />
-    <Route Url="/namespaces/:namespace/files/:filename" Method="PUT" Call="PutFile" />
-    <Route Url="/namespaces/:namespace/files/:filename" Method="POST" Call="FileAction" />
-    <Route Url="/namespaces/:namespace/files/:filename/generated" Method="GET" Call="GetFileGenerated" />
+    <Route Url="/namespaces/:namespace/files" Method="GET" Call="GetFileListN" />
+    <Route Url="/namespaces/:namespace/files" Method="PUT" Call="PutNewFileN" />
+    <Route Url="/namespaces/:namespace/files/:filename" Method="GET" Call="GetFileN" />
+    <Route Url="/namespaces/:namespace/files/:filename" Method="PUT" Call="PutFileN" />
+    <Route Url="/namespaces/:namespace/files/:filename" Method="POST" Call="FileActionN" />
+    <Route Url="/namespaces/:namespace/files/:filename/generated" Method="GET" Call="GetFileGeneratedN" />
 
-    <Route Url="/namespaces/:namespace/files/:filename/xml" Method="GET" Call="GetXML" />
-    <Route Url="/namespaces/:namespace/files/:filename/xml" Method="PUT" Call="PutXML" />
+    <Route Url="/namespaces/:namespace/files/:filename/xml" Method="GET" Call="GetXMLN" />
+    <Route Url="/namespaces/:namespace/files/:filename/xml" Method="PUT" Call="PutXMLN" />
 
-    <Route Url="/namespaces/:namespace/xml" Method="PUT" Call="PutNewXML" />
+    <Route Url="/namespaces/:namespace/xml" Method="PUT" Call="PutNewXMLN" />
 
-    <Route Url="/namespaces/:namespace/globals" Method="GET" Call="GetGlobalList" />
-    <Route Url="/namespaces/:namespace/globals/:globalname" Method="GET" Call="GetGlobal" />
+    <Route Url="/namespaces/:namespace/globals" Method="GET" Call="GetGlobalListN" />
+    <Route Url="/namespaces/:namespace/globals/:globalname" Method="GET" Call="GetGlobalN" />
 
-    <Route Url="/namespaces/:namespace/queries" Method="GET" Call="GetQueryList" />
-    <Route Url="/namespaces/:namespace/queries" Method="PUT" Call="PutNewQuery" />
-    <Route Url="/namespaces/:namespace/queries/:query" Method="GET" Call="GetQuery" />
-    <Route Url="/namespaces/:namespace/queries/:query" Method="POST" Call="QueryAction" />
-    <Route Url="/namespaces/:namespace/queries/:query/plan" Method="GET" Call="GetQueryPlan" />
-    <Route Url="/namespaces/:namespace/queries/:query/cached" Method="GET" Call="GetQueryCached" />
+    <Route Url="/namespaces/:namespace/queries" Method="GET" Call="GetQueryListN" />
+    <Route Url="/namespaces/:namespace/queries" Method="PUT" Call="PutNewQueryN" />
+    <Route Url="/namespaces/:namespace/queries/:query" Method="GET" Call="GetQueryN" />
+    <Route Url="/namespaces/:namespace/queries/:query" Method="POST" Call="QueryActionN" />
+    <Route Url="/namespaces/:namespace/queries/:query/plan" Method="GET" Call="GetQueryPlanN" />
+    <Route Url="/namespaces/:namespace/queries/:query/cached" Method="GET" Call="GetQueryCachedN" />
 
-    <Route Url="/namespaces/:namespace/code" Method="POST" Call="RunCode" />
+    <Route Url="/namespaces/:namespace/code" Method="GET" Call="GetCodeListN" />
+    <Route Url="/namespaces/:namespace/code" Method="PUT" Call="PutNewCodeN" />
+    <Route Url="/namespaces/:namespace/code/:code" Method="GET" Call="GetCodeN" />
+    <Route Url="/namespaces/:namespace/code/:code" Method="POST" Call="CodeActionN" />
 </Routes>
 }
 
@@ -42,9 +68,7 @@ ClassMethod ListOptions() As %Status
     s result.namespaces = ..CreatePath("namespaces")
     s result.version = "v0.0.3"
 
-    s %response.ContentType="application/json"
-    d result.%WriteJSON()
-    q $$$OK
+    q result
 }
 
 ClassMethod GetNamespaceList() As %Status
@@ -60,16 +84,11 @@ ClassMethod GetNamespaceList() As %Status
         }
     }
 
-    s %response.ContentType="application/json"
-    d results.%WriteJSON()
-    q $$$OK
+    q results
 }
 
 ClassMethod GetFileList(namespace As %String) As %Status
 {
-    n $namespace
-    s $namespace = namespace
-
     s results = $$$jslist
 
     s sql = "SELECT Name||'.cls' FROM %Dictionary.ClassDefinition"
@@ -89,18 +108,14 @@ ClassMethod GetFileList(namespace As %String) As %Status
         d results.Append(obj)
     }
 
-    s %response.ContentType="application/json"
-    d results.%WriteJSON()
-    q $$$OK
+    q results
 }
 
 ClassMethod GetNamespace(namespace As %String) As %Status
 {
-    s obj = ..NamespaceObject(namespace)
+    s result = ..NamespaceObject(namespace)
 
-    s %response.ContentType="application/json"
-    d obj.%WriteJSON()
-    q $$$OK
+    q result
 }
 
 ClassMethod NamespaceObject(namespace As %String) As %CDEV.JSON.Object
@@ -118,7 +133,7 @@ ClassMethod NamespaceObject(namespace As %String) As %CDEV.JSON.Object
 
 ClassMethod FileObject(namespace As %String, filename As %String) As %CDEV.JSON.Object
 {
-    s result = $$$jsobj
+    s obj = $$$jsobj
 
     if ..FileExtension(filename) = "cls"
     {
@@ -126,7 +141,7 @@ ClassMethod FileObject(namespace As %String, filename As %String) As %CDEV.JSON.
         if ##class(%Dictionary.ClassDefinition).%ExistsId(systemName)
         {
             d ##class(%Compiler.UDL.TextServices).GetTextAsStream(,..FileName(filename),.classStream) 
-            s result.content = $$$jsstream(classStream)
+            s obj.content = $$$jsstream(classStream)
         } else {
             q ""
         }
@@ -136,46 +151,37 @@ ClassMethod FileObject(namespace As %String, filename As %String) As %CDEV.JSON.
         i ##class(%Routine).Exists(filename)
         {
             s routine = ##class(%Routine).%OpenId(filename)
-            s result.content = $$$jsstream(routine)
+            s obj.content = $$$jsstream(routine)
         } else {
             q ""
         }
     }
 
-    s result.id = ..CreatePath("namespaces", namespace, "files", filename)
-    s result.generatedfiles = result.id _ "/generated"
-    s result.name = filename
-    s result.xml = ..CreatePath("namespaces", namespace, "files", filename, "xml")
-    s result.url = ..GetURLForClass(systemName)
-    q result
+    s obj.id = ..CreatePath("namespaces", namespace, "files", filename)
+    s obj.generatedfiles = obj.id _ "/generated"
+    s obj.name = filename
+    s obj.xml = ..CreatePath("namespaces", namespace, "files", filename, "xml")
+    s obj.url = ..GetURLForClass(systemName)
+    q obj
 }
 
 ClassMethod GetFile(namespace As %String, filename As %String) As %Status
 {
-    n $namespace
-    s $namespace = namespace
-
     s result = ..FileObject(namespace, filename)
 
-    d result.%WriteJSON()
-    q $$$OK
+    q result
 }
 
 ClassMethod PutFile(namespace As %String, filename As %String) As %Status
 {
-    n $namespace
-    s $namespace = namespace
-
-    s requestObject = ..GetRequest()
-
     if ..FileExtension(filename) = "cls"
     {
         s systemName = ..FileName(filename)
-        i $isobject(requestObject.content)
+        i $isobject(%input.content)
         {
-            s sc = ##class(%Compiler.UDL.TextServices).SetTextFromStream(,systemName,requestObject.content.Read()) 
+            s sc = ##class(%Compiler.UDL.TextServices).SetTextFromStream(,systemName,%input.content.Read()) 
         } else {
-            s sc = ##class(%Compiler.UDL.TextServices).SetTextFromString(,systemName,requestObject.content) 
+            s sc = ##class(%Compiler.UDL.TextServices).SetTextFromString(,systemName,%input.content) 
         }
     } else {
         s trueName = ..FileName(filename) _ "." _ $zcvt(..FileExtension(filename), "U")
@@ -186,11 +192,11 @@ ClassMethod PutFile(namespace As %String, filename As %String) As %Status
         } else {
             s routine = ##class(%Routine).%New(trueName)
         }
-        i $isobject(requestObject.content)
+        i $isobject(%input.content)
         {
-            d routine.CopyFrom(requestObject.content)
+            d routine.CopyFrom(%input.content)
         } else {
-            d routine.Write(requestObject.content)
+            d routine.Write(%input.content)
         }
         s sc = routine.%Save()
     }
@@ -206,28 +212,22 @@ ClassMethod PutFile(namespace As %String, filename As %String) As %Status
         s result.name = filename
         s result.file = ..FileObject(namespace, filename)
     }
-    s %response.ContentType="application/json"
-    d result.%WriteJSON()
-    q $$$OK
+
+    q result
 }
 
 ClassMethod PutNewFile(namespace As %String) As %Status
 {
-    s requestObject = ..GetRequest()
-    q ..PutFile(namespace, requestObject.name)
+    q ..PutFile(namespace, %input.name)
 }
 
 ClassMethod FileAction(namespace As %String, filename As %String) As %Status
 {
-    n $namespace
-    s $namespace = namespace
-
     s classname = ..FileName(filename)
-    s request = ..GetRequest()
     s result = $$$jsobj
-    if request.action = "compile"
+    if %input.action = "compile"
     {
-        d $system.OBJ.Compile(classname, request.spec_"-d", .errorlog)
+        d $system.OBJ.Compile(classname, %input.spec_"-d", .errorlog)
         i errorlog {
             s result.success = $$$jsfalse
             s result.errors = $$$jslist
@@ -240,16 +240,12 @@ ClassMethod FileAction(namespace As %String, filename As %String) As %Status
         }
     }
     s result.file = ..FileObject(namespace, filename)
-    s %response.ContentType="application/json"
-    d result.%WriteJSON()
-    q $$$OK
+
+    q result
 }
 
 ClassMethod GetXML(namespace As %String, filename As %String) As %Status
 {
-    n $namespace
-    s $namespace = namespace
-
     s exportname = ..FileName(filename) _ "." _ $zcvt(..FileExtension(filename), "U")
     s sc = $system.OBJ.ExportToStream(exportname, .stream, "-d")
 
@@ -257,23 +253,16 @@ ClassMethod GetXML(namespace As %String, filename As %String) As %Status
     s result.id = ..CreatePath("namespaces", namespace, "files", filename, "xml")
     s result.content = $$$jsstream(stream)
 
-    s %response.ContentType="application/json"
-    d result.%WriteJSON()
-    q $$$OK
+    q result
 }
 
 ClassMethod PutXML(namespace As %String, filename As %String) As %Status
 {
-    n $namespace
-    s $namespace = namespace
-
-    s request = ..GetRequest()
-
-    if '$isobject(request.content) {
+    if '$isobject(%input.content) {
         s stream = ##class(%Stream.TmpCharacter).%New()
-        d stream.Write(request.content)
+        d stream.Write(%input.content)
     } else {
-        s stream = request.content
+        s stream = %input.content
     }
     s sc = $system.OBJ.LoadStream(stream, "-c-d",,.loadedlist)
 
@@ -288,9 +277,8 @@ ClassMethod PutXML(namespace As %String, filename As %String) As %Status
         s displayname = ..FileName(name) _ "." _ $zcvt(..FileExtension(name),"L")
         s result.file = ..FileObject(namespace, displayname)
     }
-    s %response.ContentType="application/json"
-    d result.%WriteJSON()
-    q $$$OK
+
+    q result
 }
 
 ClassMethod PutNewXML(namespace As %String) As %Status
@@ -301,9 +289,6 @@ ClassMethod PutNewXML(namespace As %String) As %Status
 
 ClassMethod GetFileGenerated(namespace As %String, filename As %String) As %Status
 {
-    n $namespace
-    s $namespace = namespace
-    
     s type = $zcvt(..FileExtension(filename),"U")
     s file = ..FileName(filename)
     s results = $$$jslist
@@ -319,15 +304,12 @@ ClassMethod GetFileGenerated(namespace As %String, filename As %String) As %Stat
             d results.Append(obj)
         }
     }
-    s %response.ContentType="application/json"
-    d results.%WriteJSON()
-    q $$$OK
+
+    q results
 }
 
 ClassMethod GetGlobalList(namespace As %String)
 {
-    n $namespace
-    s $namespace = namespace
     s results = $$$jslist
     s global = ""
     f
@@ -340,26 +322,21 @@ ClassMethod GetGlobalList(namespace As %String)
         d results.Append(obj)
     }
 
-    s %response.ContentType="application/json"
-    d results.%WriteJSON()
-    q $$$OK
+    q result
 }
 
 ClassMethod QueryObject(namespace As %String, id As %Integer) As %CDEV.JSON.Object
 {
-    s result = $$$jsobj
-    s result.id = ..CreatePath("namespaces", namespace, "queries", id)
-    s result.content = ^CacheTempCDEVQuery(id, "text")
-    s result.plan = ..CreatePath("namespaces", namespace, "queries", id, "plan")
-    s result.cached = ..CreatePath("namespaces", namespace, "queries", id, "cached")
-    q result
+    s obj = $$$jsobj
+    s obj.id = ..CreatePath("namespaces", namespace, "queries", id)
+    s obj.content = ^CacheTempCDEVQuery(id, "text")
+    s obj.plan = ..CreatePath("namespaces", namespace, "queries", id, "plan")
+    s obj.cached = ..CreatePath("namespaces", namespace, "queries", id, "cached")
+    q obj
 }
 
 ClassMethod GetQueryList(namespace As %String)
 {
-    n $namespace
-    s $namespace = namespace
-
     s results = $$$jslist
 
     s id = ""
@@ -367,39 +344,29 @@ ClassMethod GetQueryList(namespace As %String)
     {
         f
         {
-            s id = $o(^CacheTempCDEVQuery(i))
+            s id = $o(^CacheTempCDEVQuery(id))
+            q:id=""
             d results.Append(..QueryObject(namespace, id))
         }
     }
 
-    s %response.ContentType="application/json"
-    d results.%WriteJSON()
-    q $$$OK
+    q results
 }
 
 ClassMethod GetQuery(namespace As %String, query As %Integer)
 {
-    n $namespace
-    s $namespace = namespace
-
     s result = ..QueryObject(namespace, query)
 
-    s %response.ContentType="application/json"
-    d result.%WriteJSON()
-    q $$$OK 
+    q result
 }
 
 ClassMethod PutNewQuery(namespace As %String)
 {
-    n $namespace
-    s $namespace = namespace
-
-    s request = ..GetRequest()
     s result = $$$jsobj
-    if $length(request.content)
+    if $length(%input.content)
     {
         s id = $increment(^CacheTempCDEVQuery)
-        s ^CacheTempCDEVQuery(id, "text") = request.content
+        s ^CacheTempCDEVQuery(id, "text") = %input.content
         s result.success = $$$jstrue
         s result.query = ..QueryObject(namespace, id)
     } else {
@@ -407,21 +374,16 @@ ClassMethod PutNewQuery(namespace As %String)
         s result.errors = "No query supplied"
     }
 
-    s %response.ContentType="application/json"
-    d result.%WriteJSON()
-    q $$$OK 
+    q result
 }
 
 ClassMethod QueryAction(namespace As %String, query As %Integer)
 {
-    n $namespace
-    s $namespace = namespace
-
-    s request = ..GetRequest()
     s queryObject = ..QueryObject(namespace, query)
-    i request.action = "execute"
+    s result = $$$jsobj
+
+    i %input.action = "execute"
     {
-        s result = $$$jsobj
 
         s st = ##class(%SQL.Statement).%New()
         s sc = st.%Prepare(queryObject.content)
@@ -452,84 +414,139 @@ ClassMethod QueryAction(namespace As %String, query As %Integer)
             }
         }
     }
-    s %response.ContentType="application/json"
-    d result.%WriteJSON()
-    q $$$OK
+    q result
 }
 
+ClassMethod CodeObject(namespace As %String, id As %Integer) As %CDEV.JSON.Object
+{
+    s obj = $$$jsobj
+    s obj.id = ..CreatePath("namespaces", namespace, "code", id)
+    s obj.content = ^CacheTempCDEVCode(id, "text")
+    q obj
+}
+
+ClassMethod GetCodeList(namespace As %String)
+{
+    s results = $$$jslist
+
+    s id = ""
+    if $data(^CacheTempCDEVQuery)
+    {
+        f
+        {
+            s id = $o(^CacheTempCDEVCode(i))
+            d results.Append(..QueryObject(namespace, id))
+        }
+    }
+
+    q results
+}
+
+ClassMethod GetCode(namespace As %String, code As %Integer)
+{
+    s result = ..CodeObject(namespace, code)
+
+    q result
+}
+
+ClassMethod PutNewCode(namespace As %String)
+{
+    s result = $$$jsobj
+    if $length(%input.content)
+    {
+        s id = $increment(^CacheTempCDEVCode)
+        s ^CacheTempCDEVCode(id, "text") = %input.content
+        s result.success = $$$jstrue
+        s result.code = ..CodeObject(namespace, id)
+    } else {
+        s result.success = $$$jsfalse
+        s result.errors = "No code supplied"
+    }
+
+    q result
+}
+
+ClassMethod CodeAction(namespace As %String, code As %Integer)
+{
+    s queryObject = ..CodeObject(namespace, code)
+    i %input.action = "execute"
+    {
+        s result = $$$jsobj
+
+        try {
+            x queryObject.content
+            s result.success = $$$jstrue
+        } catch {
+            s result.success = $$$jsfalse
+            s result.errors = ..ErrorsList($ze)
+        }
+    }
+
+    q result
+}
 ClassMethod QueryPlanOperationObject(text As %String) As %CDEV.JSON.Object
 {
-    s queryArray = 1
-    s queryArray(1) = text
+    s %queryArray = 1
+    s %queryArray(1) = text
 
-    s xStatement = "do ShowPlan^%apiSQL(.queryArray, 0, 0, 1)"
+    s xStatement = "do ShowPlan^%apiSQL(.%queryArray, 0, 0, 1)"
     s planStream = ..CaptureIO(xStatement)
 
     s sc = ##class(%XML.TextReader).ParseStream(planStream, .reader)
-    s result = $$$jsobj
+    s obj = $$$jsobj
     if $$$ISERR(sc)
     {
-        s result.success = $$$jsfalse
-        s result.errors = $$$jslist
+        s obj.success = $$$jsfalse
+        s obj.errors = $$$jslist
         d planStream.Rewind()
-        d result.errors.Append(planStream.Read())
+        d obj.errors.Append(planStream.Read())
     } else {
-        s result.success = $$$jstrue
+        s obj.success = $$$jstrue
         s textStream = ##class(%Stream.TmpCharacter).%New()
 
-        s currentElement = ""
+        s elementStack = $$$jslist
         while reader.Read()
         {
             if reader.NodeType = "element"
             {
-                s currentElement = reader.Name
+                d elementStack.Append(reader.Name)
+            } elseif reader.NodeType = "endelement"
+            {
+                d elementStack.PopBack()
             }
             elseif reader.NodeType = "chars"
             {
-                if currentElement = "plan"
+                if elementStack.Get(-1) = "plan"
                 {
                     d textStream.Write(reader.Value)
                 }
             }
         }
-        s result.content = $$$jsstream(textStream)
+        s obj.content = $$$jsstream(textStream)
     }
-    q result
+    q obj
 }
 
 ClassMethod GetQueryPlan(namespace As %String, query As %Integer)
 {
-    n $namespace
-    s $namespace = namespace
+    s obj = ..QueryObject(namespace, query)
+    s result = ..QueryPlanOperationObject(obj.content)
 
-    s result = ..QueryPlanOperationObject(query)
-
-    s %response.ContentType="application/json"
-    d result.%WriteJSON()
-    q $$$OK
+    q result
 }
 
 ClassMethod GetQueryCached(namespace As %String, query As %Integer)
 {
-    n $namespace
-    s $namespace = namespace
-
     s filename =  ^CacheTempCDEVQuery(query, "cachedQueryName")
 
     s result = ..FileObject(namespace, filename _ ".1.int")
 
-    s %response.ContentType="application/json"
-    d result.%WriteJSON()
-    q $$$OK
+    q result
 }
 
 ClassMethod RunCode(namespace As %String)
 {
-    n $namespace
-    s $namespace = namespace
-
-    s request = ..GetRequest()
-    i request.action = "execute"
+    i %input.action = "execute"
     {
 
     }
@@ -558,16 +575,15 @@ ClassMethod CreatePath(components...) As %String
     q path
 }
 
-ClassMethod SendJSON(object As %RegisteredObject) As %Status
-{
-    s %response.ContentType="application/json"
-    d ##class(%ZEN.Auxiliary.jsonProvider).%WriteJSONFromObject(,object)
-}
 
 ClassMethod GetRequest() As %ZEN.proxyObject
 {
-    d %request.Content.Rewind()
-    d ##class(%ZEN.Auxiliary.jsonProvider).%ConvertJSONToObject(%request.Content,,.request)
+    s request = ""
+    if %request.Content
+    {
+        d %request.Content.Rewind()
+        d ##class(%ZEN.Auxiliary.jsonProvider).%ConvertJSONToObject(%request.Content,,.request)
+    }
     q request
 }
 
