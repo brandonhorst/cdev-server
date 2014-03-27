@@ -395,7 +395,6 @@ ClassMethod QueryAction(namespace As %String, query As %Integer)
             s ^CacheTempCDEVQuery(query, "cachedQueryName") = cachedQueryName
             s result.success = $$$jstrue
             s result.resultset = $$$jsobj
-            s result.query = ..QueryObject(namespace, query)
             s rs = st.%Execute()
             s mt = rs.%GetMetadata()
 
@@ -473,8 +472,9 @@ ClassMethod CodeAction(namespace As %String, code As %Integer)
         s result = $$$jsobj
 
         try {
-            x queryObject.content
+            s resultStream = ..CaptureIO(queryObject.content)
             s result.success = $$$jstrue
+            s result.results = $$$jsstream(resultStream)
         } catch {
             s result.success = $$$jsfalse
             s result.errors = ..ErrorsList($ze)
