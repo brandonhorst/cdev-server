@@ -147,7 +147,6 @@ ClassMethod FileObject(namespace As %String, filename As %String) As %CDEV.JSON.
         }
     } else {
         s systemName = filename
-        w systemName
         i ##class(%Routine).Exists(filename)
         {
             s routine = ##class(%Routine).%OpenId(filename)
