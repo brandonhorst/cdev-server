@@ -29,8 +29,8 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
     <Route Url="/namespaces/:namespace/queries" Method="PUT" Call="PutNewQuery" />
     <Route Url="/namespaces/:namespace/queries/:query" Method="GET" Call="GetQuery" />
     <Route Url="/namespaces/:namespace/queries/:query" Method="POST" Call="QueryAction" />
-    <Route Url="/namespaces/:namespace/queries/:query/plan" Method="POST" Call="GetQueryPlan" />
-    <Route Url="/namespaces/:namespace/queries/:query/cached" Method="POST" Call="GetQueryCached" />
+    <Route Url="/namespaces/:namespace/queries/:query/plan" Method="GET" Call="GetQueryPlan" />
+    <Route Url="/namespaces/:namespace/queries/:query/cached" Method="GET" Call="GetQueryCached" />
 
     <Route Url="/namespaces/:namespace/code" Method="POST" Call="RunCode" />
 </Routes>
@@ -132,6 +132,7 @@ ClassMethod FileObject(namespace As %String, filename As %String) As %CDEV.JSON.
         }
     } else {
         s systemName = filename
+        w systemName
         i ##class(%Routine).Exists(filename)
         {
             s routine = ##class(%Routine).%OpenId(filename)
@@ -376,6 +377,18 @@ ClassMethod GetQueryList(namespace As %String)
     q $$$OK
 }
 
+ClassMethod GetQuery(namespace As %String, query As %Integer)
+{
+    n $namespace
+    s $namespace = namespace
+
+    s result = ..QueryObject(namespace, query)
+
+    s %response.ContentType="application/json"
+    d result.%WriteJSON()
+    q $$$OK 
+}
+
 ClassMethod PutNewQuery(namespace As %String)
 {
     n $namespace
@@ -417,6 +430,8 @@ ClassMethod QueryAction(namespace As %String, query As %Integer)
             s result.success = $$$jsfalse
             s result.errors = ..ErrorsList(sc)
         } else {
+            d st.%GetImplementationDetails(.cachedQueryName)
+            s ^CacheTempCDEVQuery(query, "cachedQueryName") = cachedQueryName
             s result.success = $$$jstrue
             s result.resultset = $$$jsobj
             s result.query = ..QueryObject(namespace, query)
@@ -442,38 +457,43 @@ ClassMethod QueryAction(namespace As %String, query As %Integer)
     q $$$OK
 }
 
-ClassMethod GetQueryPlanObject(text As %String) As %CDEV.JSON.Object
+ClassMethod QueryPlanOperationObject(text As %String) As %CDEV.JSON.Object
 {
     s queryArray = 1
     s queryArray(1) = text
-    d ShowPlan^%apiSQL(.queryArray, 1, 0, 1)
-    s planStream = ##class(%Stream.TmpCharacter).%New()
-    for i=1:1:%plan
-    {
-        planStream.WriteLine(%plan(i))
-    }
-    d planStream.Rewind()
-    s reader = ##class(%XML.TextReader).%New()
-    d reader.ParseStream(planStream)
-    s textStream = $$$jsstream
 
-    s currentElement = ""
-    while reader.Read()
+    s xStatement = "do ShowPlan^%apiSQL(.queryArray, 0, 0, 1)"
+    s planStream = ..CaptureIO(xStatement)
+
+    s sc = ##class(%XML.TextReader).ParseStream(planStream, .reader)
+    s result = $$$jsobj
+    if $$$ISERR(sc)
     {
-        if reader.NodeType = "element"
+        s result.success = $$$jsfalse
+        s result.errors = $$$jslist
+        d planStream.Rewind()
+        d result.errors.Append(planStream.Read())
+    } else {
+        s result.success = $$$jstrue
+        s textStream = ##class(%Stream.TmpCharacter).%New()
+
+        s currentElement = ""
+        while reader.Read()
         {
-            s currentElement = reader.Name
-        }
-        else if reader.NodeType = "chars"
-        {
-            if currentElement = "plan"
+            if reader.NodeType = "element"
             {
-                textStream.Write(reader.Value)
+                s currentElement = reader.Name
+            }
+            elseif reader.NodeType = "chars"
+            {
+                if currentElement = "plan"
+                {
+                    d textStream.Write(reader.Value)
+                }
             }
         }
+        s result.content = $$$jsstream(textStream)
     }
-    s result = $$$jsobj
-    s result.content = textStream
     q result
 }
 
@@ -482,22 +502,21 @@ ClassMethod GetQueryPlan(namespace As %String, query As %Integer)
     n $namespace
     s $namespace = namespace
 
-    s result = $$$jsobj
-    try {
-        s queryObject = ..QueryObject(query)
-    } catch {
-        s result.success = $$$jsfalse
-        s result.errors = ..ErrorsList($)
+    s result = ..QueryPlanOperationObject(query)
 
-    }
+    s %response.ContentType="application/json"
+    d result.%WriteJSON()
+    q $$$OK
+}
 
-    if $l(queryObject.content)
-    {
-        s result.success = $$$jstrue
-    } else {
-        s result.errors = "Invalid Query"
-    }
-    s result.
+ClassMethod GetQueryCached(namespace As %String, query As %Integer)
+{
+    n $namespace
+    s $namespace = namespace
+
+    s filename =  ^CacheTempCDEVQuery(query, "cachedQueryName")
+
+    s result = ..FileObject(namespace, filename _ ".1.int")
 
     s %response.ContentType="application/json"
     d result.%WriteJSON()
@@ -585,6 +604,34 @@ ClassMethod ErrorsList(sc As %Status) As %CDEV.JSON.List
         d list.Append(err(i))
     }
     q list
+}
+
+
+ClassMethod CaptureIO(textString As %String) As %Stream.TmpCharacter [ ProcedureBlock = 0 ]
+{
+    //I don't know why this is required but it is.
+    w " " 
+
+    set myStream = ##class(%Stream.TmpCharacter).%New()
+
+    use $io::("^"_$ZNAME)
+
+    do ##class(%Device).ReDirectIO(1)
+
+    xecute textString
+
+    do ##class(%Device).ReDirectIO(0)
+
+    quit myStream
+
+rchr(c)      quit
+rstr(sz,to)  quit
+wchr(s)      do output($char(s))  quit
+wff()        do output($char(12))  quit
+wnl()        do output($char(13,10))  quit
+wstr(s)      do output(s)  quit
+wtab(s)      do output($char(9))  quit
+output(s)    do myStream.Write(s)  quit
 }
 
 }
