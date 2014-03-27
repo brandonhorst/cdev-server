@@ -307,6 +307,26 @@ ClassMethod GetFileGenerated(namespace As %String, filename As %String) As %Stat
     q results
 }
 
+ClassMethod GlobalObject(namespace As %String, global As %String) As %CDEV.JSON.Object
+{
+    s obj = $$$jsobj
+
+    s obj.id = ..CreatePath("namespaces", namespace, "globals", global)
+
+    s jsrep = $$$jsobj
+
+    s node = "^"_global_"("""")"
+    f {
+        s node = $query(@node, 1, target)
+        q:node=""
+        s nodename = $replace($replace($e($p(node, "(", 2,9999), 1, *-1), ",""", ","), """,", ",")
+        s $property(jsrep, nodename) = target
+    }
+    s obj.content = jsrep
+    s obj.name = global
+    q obj
+}
+
 ClassMethod GetGlobalList(namespace As %String)
 {
     s results = $$$jslist
@@ -321,8 +341,15 @@ ClassMethod GetGlobalList(namespace As %String)
         d results.Append(obj)
     }
 
-    q result
+    q results
 }
+
+ClassMethod GetGlobal(namespace As %String, global As %String)
+{
+    q ..GlobalObject(namespace, global)
+}
+
+
 
 ClassMethod QueryObject(namespace As %String, id As %Integer) As %CDEV.JSON.Object
 {
