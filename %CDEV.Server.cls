@@ -125,6 +125,7 @@ ClassMethod NamespaceObject(namespace As %String) As %CDEV.JSON.Object
     s obj.id = ..CreatePath("namespaces", namespace)
     s obj.name = $zcvt(namespace, "U")
     s obj.files = ..CreatePath("namespaces", namespace, "files")
+    s obj.globals = ..CreatePath("namespaces", namespace, "globals")
     s obj.xml = ..CreatePath("namespaces", namespace, "xml")
     s obj.queries = ..CreatePath("namespaces", namespace, "queries")
 
