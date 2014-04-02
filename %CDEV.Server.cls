@@ -247,7 +247,7 @@ ClassMethod FileAction(namespace As %String, filename As %String) As %Status
 ClassMethod GetXML(namespace As %String, filename As %String) As %Status
 {
     s exportname = ..FileName(filename) _ "." _ $zcvt(..FileExtension(filename), "U")
-    s sc = $system.OBJ.ExportToStream(exportname, .stream, "-d")
+    s sc = $system.OBJ.ExportToStream(exportname, .stream, "-d /diffexport")
 
     s result = $$$jsobj
     s result.id = ..CreatePath("namespaces", namespace, "files", filename, "xml")
