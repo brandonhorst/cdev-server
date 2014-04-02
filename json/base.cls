@@ -5,7 +5,11 @@ Method %WriteJSON() { }
 
 ClassMethod %WriteJSONString(x As %String)
 {
-	w $zcvt(x, "O", "JSON")
+	try {
+		w $zcvt(x, "O", "JSON")
+	} catch {
+		w $replace($replace($zcvt(x, "O", "JS"), "\/", "/"), "\'", "'")
+	}
 }
 
 }
