@@ -460,7 +460,7 @@ ClassMethod GetCodeList(namespace As %String)
     {
         f
         {
-            s id = $o(^CacheTempCDEVCode(i))
+            s id = $o(^CacheTempCDEVCode(id))
             d results.Append(..QueryObject(namespace, id))
         }
     }
